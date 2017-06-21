@@ -1,11 +1,14 @@
 package com.distributed.distributed2017androidapp;
 
-import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
+import android.os.Environment;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.util.Log;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -14,7 +17,13 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
-
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,15 +32,19 @@ import model.Directions;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
-    private GoogleMap mMap;
-    private Directions ourDirs;
-    private LatLng _startLatLng, _endLatLng;
+    private GoogleMap mMap=null;
+    private Directions ourDirs=null;
+    private LatLng _startLatLng=null, _endLatLng=null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        Intent intent = getIntent();
-        ourDirs =(Directions) intent.getSerializableExtra("Directions");
+        try {
+            ourDirs = new Directions(jsonToStringFromFolder());
+        }catch (IOException e){
+           Log.d("dfsaf", "Cannot open json!");
+        }
+
         _startLatLng = new LatLng(ourDirs.getStartlat(),ourDirs.getStartlon());
         _endLatLng = new LatLng(ourDirs.getEndlat(),ourDirs.getEndlon());
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -39,7 +52,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
-
 
     /**
      * Manipulates the map once available.
@@ -53,12 +65,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-
+        //from.setText(ourDirs.getStartAddress());
+        //to.setText(ourDirs.getEndAddress());
         // Add a marker in Sydney and move the camera
         mMap.addMarker(new MarkerOptions().position(_startLatLng).title("Marker in Start Lon").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
         mMap.addMarker(new MarkerOptions().position(_endLatLng).icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(_startLatLng));
-        mMap.animateCamera(CameraUpdateFactory.zoomTo(10));
+
+
         PolylineOptions polylineOptions = new PolylineOptions();
         List<LatLng> slatlngs,elatlngs,latLngs=new ArrayList<LatLng>();
         List<List<LatLng>> polylinepoints;
@@ -72,12 +85,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
             latLngs.add(elatlngs.get(i));
         }
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLngs.get(latLngs.size()/2)));
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(9));
         polylineOptions.addAll(latLngs);
         polylineOptions.color(Color.RED);
         polylineOptions.geodesic(true);
         mMap.addPolyline(polylineOptions);
-
     }
+
     private List<LatLng> decodePoly(String encoded) {
 
         List<LatLng> poly = new ArrayList<LatLng>();
@@ -110,5 +125,46 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         return poly;
+    }
+
+    public String jsonToStringFromFolder() throws IOException {
+
+        FileInputStream input;
+        // Find the SD Card path
+        File filepath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
+
+        // Create a new folder AndroidBegin in SD Card
+        File dir = new File(filepath.getAbsolutePath());
+        dir.mkdirs();
+
+        // Create a name for the saved image
+        File file = new File(dir, "data.txt");
+        input = new FileInputStream(file);
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+
+        // do reading, usually loop until end of file reading
+        StringBuilder sb = new StringBuilder();
+        String mLine = reader.readLine();
+        while (mLine != null) {
+            sb.append(mLine); // process line
+            mLine = reader.readLine();
+        }
+        reader.close();
+        input.close();
+        // Locate the image to Share
+        //if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+        Uri uri=null;
+        if(file.exists()){
+            uri = Uri.fromFile(file);
+        }
+
+        return sb.toString();
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        MapsActivity.this.finish();
+        System.exit(0);
     }
 }

@@ -1,7 +1,12 @@
 package com.distributed.distributed2017androidapp;
 
-import android.content.Context;
+import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,13 +16,25 @@ import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.distributed.distributed2017androidapp.Controller.HandleConnections;
+import org.lukhnos.nnio.file.Files;
+import org.lukhnos.nnio.file.Paths;
 import model.Directions;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.Charset;
 
 public class MainActivity extends AppCompatActivity {
+    String[] perms = {"android.permission.WRITE_EXTERNAL_STORAGE", "android.permission.READ_EXTERNAL_STORAGE"};
+
+    int permsRequestCode = 200;
+    private SharedPreferences sharedPreferences;
     static private String startLon,startLat,endLat,endLon;
     static EditText startlat, startlon, endlat, endlon;
     Directions askedDirs=null;
@@ -41,27 +58,26 @@ public class MainActivity extends AppCompatActivity {
                     Log.i("dvevf",startLat);
                     askedDirs= new Directions(Double.parseDouble(startLat),Double.parseDouble(startLon),Double.parseDouble(endLat),Double.parseDouble(endLon));
                     //Log.i("OurDirs",askedDirs.toString());
-                    if(handleConnections==null) {
-                        handleConnections = new HandleConnections("172.16.1.58", 4321, askedDirs);
-                        handleConnections.setAskedDirs(askedDirs);
-                        handleConnections.execute();
-                    }else {
-                        handleConnections.setAskedDirs(askedDirs);
-                        handleConnections.execute();
-                    }
+                    handleConnections = new HandleConnections("192.168.1.73", 4321, askedDirs);
+                    handleConnections.setAskedDirs(askedDirs);
+                    handleConnections.execute();
+
                     while(handleConnections.getOurDirs()==null){
                         int i=0;
                         i++;
                     }
                     handleConnections.cancel(true);
-                    Directions ourDirs = handleConnections.getOurDirs();
-                    textView.setText(ourDirs.toString());
-                    //Toast.makeText(getApplicationContext(),ourDirs.toString(),Toast.LENGTH_LONG).show();
-                    Intent goToMaps = new Intent(MainActivity.this,MapsActivity.class);
-                    goToMaps.putExtra("Directions",ourDirs);
+
+                    try {
+                        clearAndWriteJSON(handleConnections.getOurDirs().getDirs());
+                    } catch (IOException e) {
+                        e.getMessage();
+                    }
+
+                   Intent goToMaps = new Intent(MainActivity.this,MapsActivity.class);
                     startActivity(goToMaps);
-                    handleConnections.setAskedDirs(null);
-                    askedDirs=null;handleConnections=null;
+                    handleConnections.setAskedDirs(null); MainActivity.this.finish();
+                    askedDirs=null; handleConnections=null;
                 }else{
                     Toast.makeText(getApplicationContext(),"We cannot use the inputs ", Toast.LENGTH_LONG).show();
                 }
@@ -116,4 +132,88 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
     }
+
+    private void clearAndWriteJSON(String json) throws IOException {
+        if (shouldAskPermission()) {
+            if(hasPermission(perms[0]) && hasPermission(perms[1])){
+
+            }else{
+                if(!hasPermission(perms[0]) && !hasPermission(perms[1])) {
+                    requestPermissions(perms, permsRequestCode);
+                }
+            }
+
+        }
+        FileOutputStream output;
+
+        // Find the SD Card path
+        File filepath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
+
+        // Create a new folder AndroidBegin in SD Card
+        File dir = new File(filepath.getAbsolutePath());
+        dir.mkdirs();
+
+        // Create a name for the saved image
+        File file = new File(dir, "data.txt");
+        output = new FileOutputStream(file,false);
+        output.write(json.getBytes());
+        output.flush();
+        output.close();
+        // Locate the image to Share
+        //if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+        Uri uri=null;
+        if(file.exists()){
+            uri = Uri.fromFile(file);
+        }
+    }
+    private boolean shouldAskPermission(){
+
+        return(Build.VERSION.SDK_INT>=Build.VERSION_CODES.M);
+
+    }
+    @Override
+    public void onRequestPermissionsResult(int permsRequestCode, String[] permissions, int[] grantResults){
+
+        switch(permsRequestCode){
+
+            case 200:
+
+                boolean writeAccepted = grantResults[0]== PackageManager.PERMISSION_GRANTED;
+                if(writeAccepted)markAsAsked(perms[0]);
+                boolean readAccepted = grantResults[1]==PackageManager.PERMISSION_GRANTED;
+                if(readAccepted)markAsAsked(perms[1]);
+                break;
+
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private boolean hasPermission(String permission){
+
+        if(canMakeSmores()){
+
+            return(checkSelfPermission(permission)== PackageManager.PERMISSION_GRANTED);
+
+        }
+
+        return true;
+
+    }
+    private boolean shouldWeAsk(String permission){
+
+        return (sharedPreferences.getBoolean(permission, true));
+
+    }
+
+
+
+    private void markAsAsked(String permission){
+
+        sharedPreferences.edit().putBoolean(permission, false).apply();
+
+    }
+    private boolean canMakeSmores() {
+        return(Build.VERSION.SDK_INT>Build.VERSION_CODES.LOLLIPOP_MR1);
+    }
+
 }

@@ -2,10 +2,12 @@ package com.distributed.distributed2017androidapp.Controller;
 
 import android.os.AsyncTask;
 import android.util.Log;
-import android.widget.Toast;
 
 import model.Directions;
+
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.*;
@@ -14,7 +16,7 @@ import java.net.*;
  * Created by tasos on 5/8/2017.
  */
 
-public class HandleConnections extends AsyncTask<Object, Object, String> {
+public class HandleConnections extends AsyncTask<Object, Object, String>{
     Socket socket = null;
     ObjectInputStream objectInputStream = null;
     ObjectOutputStream objectOutputStream = null;
@@ -44,29 +46,29 @@ public class HandleConnections extends AsyncTask<Object, Object, String> {
     public void setOurDirs(Directions dirs){
         this.ourDirs=dirs;
     }
+
     @Override
     public String doInBackground(Object... arg0) {
         try {
-            if(socket==null) {
+            if (socket == null) {
                 socket = new Socket(dstAddress, dstPort);
                 objectInputStream = new ObjectInputStream(socket.getInputStream());
                 objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
             }
-            if(askedDirs==null)
-                Log.e("isError","iserrorrrrr");
-            Log.i("askeddirs: ",askedDirs.toString());
+            if (askedDirs == null)
+                Log.e("isError", "iserrorrrrr");
             objectOutputStream.writeObject(this.getAskedDirs());
             objectOutputStream.flush();
+
             Object object = objectInputStream.readObject();
-            //this.ourDirs=(Directions)objectInputStream.readObject();
-            //Log.d("Our dirs  ",object.getClass().toString());
-            this.setOurDirs((Directions)object);
+            this.setOurDirs((Directions) object);
+            Log.i("Passed", "Got an input for data");
+        }catch (EOFException eof){
+            Log.e("message untill now", "eofaaaaa");
         } catch (UnknownHostException e) {
             Log.d("UnknownHostException  ",e.getMessage());
-            response = "UnknownHostException: " + e.toString();
         } catch (IOException jh) {
-            Log.d("IOException  ",jh.getMessage());
-            response = "IOException: " + jh.toString();
+            jh.printStackTrace();
         } catch (ClassNotFoundException e) {
             Log.d("ClassNotFoundException",e.getMessage());
         }catch (NullPointerException e){
@@ -75,20 +77,25 @@ public class HandleConnections extends AsyncTask<Object, Object, String> {
             if (socket != null) {
                 try {
                     socket.close();
+                    objectInputStream.close();
+                    objectOutputStream.close();
+                    throw new InterruptedException();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
+                } catch (InterruptedException interrupt){
+                    Log.d("THread interrupted", "interupt");
                 }
             }
         }
+        objectInputStream = null;
+        objectOutputStream=null;
+        socket=null;
         return response;
     }
 
     @Override
     protected void onPostExecute(String result) {
         super.onPostExecute(result);
-
-        Log.d("Our Dirs:",response);
 
     }
 
